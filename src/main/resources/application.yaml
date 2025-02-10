@@ -1,0 +1,26 @@
+# Kafka Configuration
+app:
+  kafka:
+    topic: topic-electronic-document
+    bootstrap-servers: localhost:19092
+    consumer:
+      group-id: electronic-document-cg-01
+      client-id: electronic-document-client-01
+      max-pool-records: 10
+      offset-records: earliest
+      auto-commit: true
+
+# Reactive SQL Configuration
+quarkus:
+  devservices:
+    enabled: false
+  kafka:
+    devservices:
+      enabled: false
+  datasource:
+    db-kind: mssql
+    username: sa
+    password: 123456789
+    reactive:
+      url: vertx-reactive:sqlserver://192.168.0.73:1433/DBDocumentElectronics2025
+      max-size: 20

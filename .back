@@ -1,0 +1,83 @@
+package pe.marcolopez.apps.test.demo.consumer;
+
+import io.quarkus.runtime.ShutdownEvent;
+import io.quarkus.runtime.StartupEvent;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import pe.marcolopez.apps.test.demo.model.ElectronicDocument;
+import pe.marcolopez.apps.test.demo.service.ElectronicDocumentService;
+
+import java.time.Duration;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+@Slf4j
+@ApplicationScoped
+public class ElectronicDocumentConsumer {
+
+  @ConfigProperty(name = "app.kafka.topic", defaultValue = "topic")
+  String topic;
+
+  @Inject
+  Consumer<String, String> consumer;
+
+  @Inject
+  ElectronicDocumentService electronicDocumentService;
+
+  volatile boolean done = false;
+  volatile String last;
+
+  public void initialize(@Observes StartupEvent ev) {
+    log.info("### Initializing ElectronicDocumentConsumer...");
+    consumer.subscribe(Collections.singleton(topic));
+
+    new Thread(() -> {
+      while (!done) {
+        final var consumerRecords = consumer.poll(Duration.ofSeconds(1));
+        log.info("### Looking for records with UUID: {}", UUID.randomUUID());
+
+        if (consumerRecords.isEmpty()) {
+          continue;
+        }
+
+        Uni.combine()
+            .all()
+            .unis(
+                StreamSupport.stream(consumerRecords.spliterator(), false)
+                    .limit(10)
+                    .map(record -> {
+                      String serialNumber = record.value().split("-")[0];
+                      String invoiceNumber = record.value().split("-")[1];
+
+                      return electronicDocumentService.findOrCreate(serialNumber, invoiceNumber);
+                    })
+                    .toList()
+            )
+            .combinedWith(ignored -> null)
+            .subscribe()
+            .with(
+                unused -> {
+                  consumer.commitSync();
+                  log.info("### Batch of 10 events ended.");
+                },
+                failure -> log.error("### Error processing batch ", failure)
+            );
+      }
+
+      consumer.close();
+    }).start();
+  }
+
+  public void terminate(@Observes ShutdownEvent ev) {
+    done = true;
+  }
+}
