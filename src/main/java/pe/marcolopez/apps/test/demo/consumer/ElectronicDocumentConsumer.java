@@ -1,6 +1,5 @@
 package pe.marcolopez.apps.test.demo.consumer;
 
-import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.runtime.StartupEvent;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -13,15 +12,10 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import pe.marcolopez.apps.test.demo.model.ElectronicDocument;
 import pe.marcolopez.apps.test.demo.service.ElectronicDocumentService;
-
 import java.time.Duration;
 import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 @Slf4j
 @ApplicationScoped
@@ -43,15 +37,16 @@ public class ElectronicDocumentConsumer {
     log.info("### Initializing ElectronicDocumentConsumer...");
     consumer.subscribe(Collections.singleton(topic));
 
-    vertx.setPeriodic(1000, id -> {
-      vertx.executeBlocking(Uni.createFrom().item(() ->
-              consumer.poll(Duration.ofSeconds(1))))
-          .subscribe()
-          .with(consumerRecords -> {
-            log.info("### Consumer Records with UUID: {}", UUID.randomUUID());
-            processRecords(consumerRecords);
-          });
-    });
+    vertx.setPeriodic(1000, id ->
+        vertx.executeBlocking(
+          Uni.createFrom().item(() -> consumer.poll(Duration.ofSeconds(1)))
+        )
+        .subscribe()
+        .with(consumerRecords -> {
+          log.info("### Consumer Records with UUID: {}", UUID.randomUUID());
+          processRecords(consumerRecords);
+        })
+    );
   }
 
   private void processRecords(ConsumerRecords<String, String> records) {
